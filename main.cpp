@@ -86,7 +86,7 @@ void print_graph_info(const labeled_graph_type& g);
 // calc graph density. It's used to decide which algo to use later.
 inline double density(const labeled_graph_type& g);
 // method loads n graphs from file "shock.txt" into G_
-void load_graphs(graph_vector& G_, size_t n = 2, const string& filename = "shock.txt");
+void load_graphs(graph_vector& G_, size_t n = 2, const string& filename = "data/shock.txt");
 // method prints all graphs info
 void print_graph_vector_info(const graph_vector& G_);
 // func to print all edge weights

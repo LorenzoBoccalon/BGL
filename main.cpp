@@ -97,7 +97,7 @@ void print_vertex_labels(const labeled_graph_type& g);
 distance_matrix_t get_all_pairs_shortest_paths(const labeled_graph_type& g);
 // Print all pair shortest paths. If verbose is true then shows matrix of paths
 template<typename VertexNameMap>
-void print_distance_matrix(distance_matrix_t distance_matrix, VertexNameMap name_map, bool verbose = false);
+void print_distance_matrix(distance_matrix_t distance_matrix, VertexNameMap name_map);
 // create a copy of the graph with an edge connecting each vertex with weight wq  equal to shortest path
 labeled_graph_type floyd_warshall_transform(const labeled_graph_type& g, bool verbose);
 // compute the shortest path kernel between two graphs
@@ -165,7 +165,6 @@ distance_matrix_t get_all_pairs_shortest_paths(const labeled_graph_type& g)
 
     // Initialize empty matrix with #dim vectors of size #dim
     distance_matrix_t distance_matrix(dim, vector<size_t>(dim));
-    // Use F-W
     auto weights = boost::get(&m_edge_property::weight, g);
     bool done = false;
     // use optimal algorithm based on graph density
@@ -187,24 +186,21 @@ distance_matrix_t get_all_pairs_shortest_paths(const labeled_graph_type& g)
 }
 
 template<typename VertexNameMap>
-void print_distance_matrix(distance_matrix_t distance_matrix, VertexNameMap name_map, bool verbose)
+void print_distance_matrix(distance_matrix_t distance_matrix, VertexNameMap name_map)
 {
     auto dim = distance_matrix.size();
-    if(verbose)
+    cout << "Distance Matrix of g\ndim = " << dim << " x " << dim << endl;
+    for (size_t i = 0; i < dim; i++)
+        cout << name_map[i] << " ";
+    cout << endl;
+    std::for_each(distance_matrix.begin(), distance_matrix.end(), [](const auto& row)
     {
-        cout << "Distance Matrix of g\ndim = " << dim << " x " << dim << endl;
-        for (size_t i = 0; i < dim; i++)
-            cout << name_map[i] << " ";
-        cout << endl;
-        std::for_each(distance_matrix.begin(), distance_matrix.end(), [](const auto& row)
+        std::for_each(row.begin(), row.end(), [](size_t w)
         {
-            std::for_each(row.begin(), row.end(), [](size_t w)
-            {
-                cout << w << " ";
-            });
-            cout << endl;
+            cout << w << " ";
         });
-    }
+        cout << endl;
+    });
 }
 
 labeled_graph_type test_graph_1()
@@ -431,14 +427,11 @@ labeled_graph_type floyd_warshall_transform(const labeled_graph_type& g, bool ve
 {
     distance_matrix_t A = get_all_pairs_shortest_paths(g);
     labeled_graph_type S(num_vertices(g));
-
     // DEBUG
     if (verbose)
     {
         auto name_map = get(&m_vertex_property::label, g);
-        print_distance_matrix(A, name_map, verbose);
-
-
+        print_distance_matrix(A, name_map);
         cout << "names:" << endl;
         for (size_t i = 0; i < A.size(); i++)
         {
@@ -461,9 +454,10 @@ labeled_graph_type floyd_warshall_transform(const labeled_graph_type& g, bool ve
     }
     else
     {
+        // copy the labels
         for (size_t i = 0; i < A.size(); i++)
             S[i].label = g[i].label;
-
+        // create an edge for each pair of vertices
         for (size_t row = 0; row < A.size(); ++row) {
             for (size_t col = row + 1; col < A.size(); ++col) {
                 if (row != col) {
@@ -476,7 +470,7 @@ labeled_graph_type floyd_warshall_transform(const labeled_graph_type& g, bool ve
     }
 
     S[graph_bundle].m_density = density(S); // should be 1
-    S[graph_bundle].m_graph_index = 1234;
+    S[graph_bundle].m_graph_index = 1234;   // meaningless ID
     return S;
 }
 
@@ -570,29 +564,29 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
 
     // hash to label mapping
     typedef std::map<size_t, string> label_id_map;
-    label_id_map lab_to_id;
+    label_id_map id_to_lab;
     // vertex descriptor to hash mapping
     typedef std::map<vertex_descriptor, size_t>  vertex_id_map;
     vector<vertex_id_map> ver_to_id_1(depth), ver_to_id_2(depth);
     // hash function to uniquely map labels (and label compression)
     std::hash<string> hasher;
-    // map hash to a position
+    // map hash to a position for inner product
     std::map<size_t, size_t> hash_pos_map;
-
+    // used for tree depth
     size_t level = 0;
 
     // find all unique labels and add them to level 0 
     for (const auto& v_1 : make_iterator_range(vertices(g_1)))
     {
         auto the_hash = hasher(g_1[v_1].label);
-        lab_to_id[the_hash] = g_1[v_1].label;
+        id_to_lab[the_hash] = g_1[v_1].label;
         ver_to_id_1[level][v_1] = the_hash;
     }
 
     for (const auto& v_2 : make_iterator_range(vertices(g_2)))
     {
         auto the_hash = hasher(g_2[v_2].label);
-        lab_to_id[the_hash] = g_2[v_2].label;
+        id_to_lab[the_hash] = g_2[v_2].label;
         ver_to_id_2[level][v_2] = the_hash;
     }
 
@@ -603,16 +597,16 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
         {
             multiset<size_t> neighbors_labels;
             size_t root_label = ver_to_id_1[level-1][v_1];
-
+            // for each adjacent vertex add its label to the set
             for (const auto& v_adj : make_iterator_range(adjacent_vertices(v_1, g_1)))
                 neighbors_labels.insert(ver_to_id_1[level - 1][v_adj]);
-
+            // create a new label
             string new_label = std::to_string(root_label) + ",";
             for (const auto& e : neighbors_labels)
                 new_label += " " + std::to_string(e);
-            // DEBUG cout << new_label << endl;
+            // hash / compress the label and map it
             auto the_hash = hasher(new_label);
-            lab_to_id[the_hash] = new_label;
+            id_to_lab[the_hash] = new_label;
             ver_to_id_1[level][v_1] = the_hash;
         }
 
@@ -627,18 +621,17 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
             string new_label = std::to_string(root_label) + ",";
             for (const auto& e : neighbors_labels)
                 new_label += " " + std::to_string(e);
-            // DEBUG cout << new_label << endl;
             auto the_hash = hasher(new_label);
-            lab_to_id[the_hash] = new_label;
+            id_to_lab[the_hash] = new_label;
             ver_to_id_2[level][v_2] = the_hash;
         }
     }
 
     // print all labels
-    cout << "number of distinct labels: " << lab_to_id.size() << endl;
+    cout << "number of distinct labels: " << id_to_lab.size() << endl;
     cout << "label mapping [hash <-> label]:" << endl;
     size_t pos = 0;
-    for (const auto& [k, v] : lab_to_id)
+    for (const auto& [k, v] : id_to_lab)
     {
         cout << k << " <-> " << v << endl;
         hash_pos_map[k] = pos++;
@@ -651,22 +644,22 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
 
     // count common labels
 
-    vector<size_t> phi_g_1(lab_to_id.size(), 0);
-    vector<size_t> phi_g_2(lab_to_id.size(), 0);
+    vector<size_t> phi_g_1(id_to_lab.size(), 0);
+    vector<size_t> phi_g_2(id_to_lab.size(), 0);
 
     for (level = 0; level < depth; level++)
     {
         cout << "depth: " << level << ", features in g_1" << endl;
-        for (const auto& [this_ver_des, this_hash] : ver_to_id_1[level])
+        for (const auto& [this_v, this_hash] : ver_to_id_1[level])
         {
-            cout << "vertex descriptor: " << this_ver_des << " | label ID: " << this_hash << " <-> " << lab_to_id[this_hash] << endl;
+            cout << "vertex descriptor: " << this_v << " | label ID: " << this_hash << " <-> " << id_to_lab[this_hash] << endl;
             phi_g_1[hash_pos_map[this_hash]]++;
         }
 
         cout << "depth: " << level << ", features in g_2" << endl;
-        for (const auto& [this_ver_des, this_hash] : ver_to_id_2[level])
+        for (const auto& [this_v, this_hash] : ver_to_id_2[level])
         {
-            cout << "vertex descriptor: " << this_ver_des << " | label ID: " << this_hash << " <-> " << lab_to_id[this_hash] << endl;
+            cout << "vertex descriptor: " << this_v << " | label ID: " << this_hash << " <-> " << id_to_lab[this_hash] << endl;
             //cout << "deb " << this_hash << " " << hash_pos_map[this_hash] << endl;
             phi_g_2[hash_pos_map[this_hash]]++;
         }

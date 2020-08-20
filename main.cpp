@@ -8,6 +8,7 @@
 #include <boost/graph/floyd_warshall_shortest.hpp>
 #include <boost/graph/johnson_all_pairs_shortest.hpp>
 #include <boost/graph/graph_utility.hpp>
+#include <boost/bimap.hpp>
 #include <utility>
 
 
@@ -562,32 +563,84 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
 {
     size_t kernel = 0;
 
-    // hash to label mapping
-    typedef std::map<size_t, string> label_id_map;
-    label_id_map id_to_lab;
-    // vertex descriptor to hash mapping
-    typedef std::map<vertex_descriptor, size_t>  vertex_id_map;
-    vector<vertex_id_map> ver_to_id_1(depth), ver_to_id_2(depth);
-    // hash function to uniquely map labels (and label compression)
-    std::hash<string> hasher;
-    // map hash to a position for inner product
-    std::map<size_t, size_t> hash_pos_map;
+    // map integer to a label
+    // bm.left = num -> string
+    // bm.right = string -> num
+    // X -> Y, where X is a counter and Y is a label
+    typedef bimap<size_t, string> bm_t;
+    bm_t label_id_map;
+    // map vertex descriptor to integer representing labels
+    typedef std::pair<vertex_descriptor, size_t>  id_vertex_map_t;
+    vector<vector<id_vertex_map_t>> ver_to_id_1(depth, vector<id_vertex_map_t>()), ver_to_id_2(depth, vector<id_vertex_map_t>());
     // used for tree depth
     size_t level = 0;
+    // used to keep track of labels
+    size_t label_counter = 0;
 
     // find all unique labels and add them to level 0 
     for (const auto& v_1 : make_iterator_range(vertices(g_1)))
     {
-        auto the_hash = hasher(g_1[v_1].label);
-        id_to_lab[the_hash] = g_1[v_1].label;
-        ver_to_id_1[level][v_1] = the_hash;
+        // read current label
+        auto the_label = g_1[v_1].label;
+        // check if present
+        auto present = label_id_map.right.find(the_label);
+        // present        : r_iter
+        // present.first  : string
+        // present.second : size_t
+
+        // if NOT present map it to a number
+        if ( present == label_id_map.right.end())
+        {
+            // add it to set
+            label_id_map.insert(bm_t::value_type(label_counter, the_label));
+            // map vertex to
+            id_vertex_map_t the_id{v_1, label_counter };
+            // add pair to vector
+            ver_to_id_1[level].push_back(the_id);
+            // increment number of labels
+            label_counter++;
+            // DEBUG
+            cout << "counter post increment: " << label_counter << " " << the_id.first << " -> " << the_id.second << endl;
+        }
+        else
+        {
+            id_vertex_map_t the_id{v_1, present->second };
+            // DEBUG
+            cout << the_id.first << " -> " << the_id.second << endl;
+
+            // add pair to vector
+            ver_to_id_1[level].push_back(the_id);
+        }
     }
 
     for (const auto& v_2 : make_iterator_range(vertices(g_2)))
     {
-        auto the_hash = hasher(g_2[v_2].label);
-        id_to_lab[the_hash] = g_2[v_2].label;
-        ver_to_id_2[level][v_2] = the_hash;
+        // read current label
+        auto the_label = g_2[v_2].label;
+        // check if present
+        auto present = label_id_map.right.find(the_label);
+        // present        : r_iter
+        // present.first  : string
+        // present.second : size_t
+
+        // if NOT present map it to a number
+        if ( present == label_id_map.right.end())
+        {
+            // add it to set
+            label_id_map.insert(bm_t::value_type(label_counter, the_label));
+            // map vertex to
+            id_vertex_map_t the_id{v_2, label_counter };
+            // add pair to vector
+            ver_to_id_1[level].push_back(the_id);
+            // increment number of labels
+            label_counter++;
+        }
+        else
+        {
+            id_vertex_map_t the_id{v_2, present->second };
+            // add pair to vector
+            ver_to_id_2[level].push_back(the_id);
+        }
     }
 
     for (level = 1; level < depth; level++)
@@ -595,57 +648,44 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
         // compare label of previous level 
         for (const auto& v_1 : make_iterator_range(vertices(g_1)))
         {
-            multiset<size_t> neighbors_labels;
-            size_t root_label = ver_to_id_1[level-1][v_1];
-            // for each adjacent vertex add its label to the set
+
             for (const auto& v_adj : make_iterator_range(adjacent_vertices(v_1, g_1)))
-                neighbors_labels.insert(ver_to_id_1[level - 1][v_adj]);
-            // create a new label
-            string new_label = std::to_string(root_label) + ",";
-            for (const auto& e : neighbors_labels)
-                new_label += " " + std::to_string(e);
-            // hash / compress the label and map it
-            auto the_hash = hasher(new_label);
-            id_to_lab[the_hash] = new_label;
-            ver_to_id_1[level][v_1] = the_hash;
+            {
+
+            }
+
         }
 
         for (const auto& v_2 : make_iterator_range(vertices(g_2)))
         {
-            multiset<size_t> neighbors_labels;
-            size_t root_label = ver_to_id_2[level - 1][v_2];
 
             for (const auto& v_adj : make_iterator_range(adjacent_vertices(v_2, g_2)))
-                neighbors_labels.insert(ver_to_id_1[level - 1][v_adj]);
+            {
 
-            string new_label = std::to_string(root_label) + ",";
-            for (const auto& e : neighbors_labels)
-                new_label += " " + std::to_string(e);
-            auto the_hash = hasher(new_label);
-            id_to_lab[the_hash] = new_label;
-            ver_to_id_2[level][v_2] = the_hash;
+            }
         }
     }
 
     // print all labels
-    cout << "number of distinct labels: " << id_to_lab.size() << endl;
-    cout << "label mapping [hash <-> label]:" << endl;
-    size_t pos = 0;
-    for (const auto& [k, v] : id_to_lab)
-    {
-        cout << k << " <-> " << v << endl;
-        hash_pos_map[k] = pos++;
-    }
+    cout << "number of distinct labels: " << label_id_map.size() << endl;
+    cout << "label mapping [ID -> label]:" << endl;
+    for (const auto& p : label_id_map.left)
+        cout << p.first << " -> " << p.second << endl;
+    cout << "label mapping [label -> ID]:" << endl;
+    for (const auto& p : label_id_map.right)
+        cout << p.first << " -> " << p.second << endl;
 
-    cout << "position mapping [hash <-> position]:" << endl;
-    for (const auto& [k, v] : hash_pos_map)
-        cout << k << " <-> " << v << endl;
+    for (const auto& [v, id] : ver_to_id_1[0])
+        cout << "g_1 : vertex descriptor: " << v << " | ID: " << id << " -> label: " << label_id_map.left.find(id)->second << endl;
+    for (const auto& [v, id] : ver_to_id_2[0])
+        cout << "g_2 : vertex descriptor: " << v << " | ID: " << id << " -> label: " << label_id_map.left.find(id)->second << endl;
+
 
 
     // count common labels
-
-    vector<size_t> phi_g_1(id_to_lab.size(), 0);
-    vector<size_t> phi_g_2(id_to_lab.size(), 0);
+/*
+    vector<size_t> phi_g_1(label_id_map.size(), 0);
+    vector<size_t> phi_g_2(label_id_map.size(), 0);
 
     for (level = 0; level < depth; level++)
     {
@@ -677,7 +717,7 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
 
     // result is inner product of the two feature vectors Phi
     kernel = std::inner_product(phi_g_1.begin(), phi_g_1.end(), phi_g_2.begin(), 0);
-
+*/
     cout << "result = ";
     return kernel;
 }

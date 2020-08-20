@@ -1,0 +1,6 @@
+C:\Users\loryt\AppData\Local\JetBrains\Toolbox\apps\CLion\ch-0\202.6397.106\bin\cmake\win\bin\cmake.exe -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - NMake Makefiles" C:\Users\loryt\CLionProjects\BGL
+-- start running cmake...
+-- Found Boost: C:/Users/loryt/Documents/boost/boost_1_73_0 (found suitable version "1.73.0", minimum required is "1.73.0")  
+-- Configuring done
+-- Generating done
+-- Build files have been written to: C:/Users/loryt/CLionProjects/BGL/cmake-build-debug

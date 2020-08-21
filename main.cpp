@@ -285,10 +285,10 @@ void next_level_hash_table(hash_table_t& hash_table, const labeled_graph_type& g
     for (const auto& v : make_iterator_range(vertices(g)))
     {
         size_t this_node_hash = hash_table[previous_level][v];
-        cout << "this node hash: " << this_node_hash << endl;
+        cout << "this node hash: " << this_node_hash;
         multiset<size_t> neighbor_node_hashes;
         // add each adjacent hashed label to multiset
-        cout << "neighbor hash: ";
+        cout << " | neighbor hash: ";
         for (const auto& v_adj : make_iterator_range(adjacent_vertices(v, g)))
         {
             auto neighbor_hash = hash_table[previous_level][v_adj];
@@ -354,7 +354,7 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
     for(int level = 0; level < depth; level++)
     {
         cout << "\tlevel " << level << endl << '\t';
-        for(const auto& h : hash_table_g_1[0])
+        for(const auto& h : hash_table_g_1[level])
             cout << h << " ";
         cout << endl;
     }
@@ -362,7 +362,7 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
     for(int level = 0; level < depth; level++)
     {
         cout << "\tlevel " << level << endl << '\t';
-        for(const auto& h : hash_table_g_1[0])
+        for(const auto& h : hash_table_g_2[level])
             cout << h << " ";
         cout << endl;
     }

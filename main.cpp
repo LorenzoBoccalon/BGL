@@ -8,6 +8,7 @@
 #include <boost/graph/floyd_warshall_shortest.hpp>
 #include <boost/graph/johnson_all_pairs_shortest.hpp>
 #include <boost/graph/graph_utility.hpp>
+#include <boost/container_hash/hash.hpp>
 #include <utility>
 
 
@@ -15,6 +16,7 @@ using namespace boost;
 using namespace std;
 /* STRUCTS FOR KERNEL FEATURES */
 typedef vector<vector<size_t>> distance_matrix_t;
+typedef vector<vector<size_t>> hash_table_t;
 
 ostream& operator<<(ostream& os, const std::pair<string, string>& p)
 {
@@ -558,95 +560,74 @@ size_t shortest_path_kernel(const labeled_graph_type& S_1, const labeled_graph_t
     return kernel;
 }
 
+void initialize_hash_table(hash_table_t& hash_table, const labeled_graph_type& g)
+{
+    // initialize first level of hash table
+    int level = 0;
+    // for each node, hash its label and insert it in corresponding cell in hash table
+    for (const auto& v : make_iterator_range(vertices(g)))
+        hash_table[level][v] = hash_value(g[v].label);
+}
+
+void next_level_hash_table(hash_table_t& hash_table, const labeled_graph_type& g, size_t current_level)
+{
+    for (const auto& v : make_iterator_range(vertices(g)))
+    {
+        size_t this_node_hash = hash_table[current_level-1][v];
+        multiset<size_t> neighbor_node_hashes;
+        // add each adjacent hashed label to multiset
+        for (const auto& v_adj : make_iterator_range(adjacent_vertices(v, g)))
+            neighbor_node_hashes.insert(hash_table[current_level-1][v_adj]);
+        // transform multiset in vector
+        vector<size_t> new_node_label(neighbor_node_hashes.begin(), neighbor_node_hashes.end());
+        // add in first position its previous hashed label
+        new_node_label.insert(new_node_label.begin(), this_node_hash);
+        // hash the new label and insert it in corresponding cell in hash table
+        hash_table[current_level][v] = hash_range(new_node_label.begin(), new_node_label.end());
+    }
+}
+
 size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_graph_type& g_2, size_t depth)
 {
     size_t kernel = 0;
 
-    // hash to label mapping
-    typedef std::map<size_t, string> label_id_map;
-    label_id_map id_to_lab;
-    // vertex descriptor to hash mapping
-    typedef std::map<vertex_descriptor, size_t>  vertex_id_map;
-    vector<vertex_id_map> ver_to_id_1(depth), ver_to_id_2(depth);
-    // hash function to uniquely map labels (and label compression)
-    std::hash<string> hasher;
-    // map hash to a position for inner product
-    std::map<size_t, size_t> hash_pos_map;
-    // used for tree depth
-    size_t level = 0;
+    // hash tables containing label hash for each vertex for each level of depth in W-L algorithm
+    hash_table_t hash_table_g_1(depth, vector<size_t>(num_vertices(g_1)));
+    hash_table_t hash_table_g_2(depth, vector<size_t>(num_vertices(g_2)));
 
-    // find all unique labels and add them to level 0 
-    for (const auto& v_1 : make_iterator_range(vertices(g_1)))
+    // initialize hash tables
+    initialize_hash_table(hash_table_g_1, g_1);
+    initialize_hash_table(hash_table_g_2, g_2);
+
+    // compute the new hashed labels for each level for each graph
+    for (size_t level = 1; level < depth; level++)
     {
-        auto the_hash = hasher(g_1[v_1].label);
-        id_to_lab[the_hash] = g_1[v_1].label;
-        ver_to_id_1[level][v_1] = the_hash;
+        next_level_hash_table(hash_table_g_1, g_1, level);
+        next_level_hash_table(hash_table_g_2, g_2, level);
     }
 
-    for (const auto& v_2 : make_iterator_range(vertices(g_2)))
-    {
-        auto the_hash = hasher(g_2[v_2].label);
-        id_to_lab[the_hash] = g_2[v_2].label;
-        ver_to_id_2[level][v_2] = the_hash;
-    }
+    // create a set containing every unique hashed label
+    set<size_t> hashed_labels;
 
-    for (level = 1; level < depth; level++)
-    {
-        // compare label of previous level 
-        for (const auto& v_1 : make_iterator_range(vertices(g_1)))
-        {
-            multiset<size_t> neighbors_labels;
-            size_t root_label = ver_to_id_1[level-1][v_1];
-            // for each adjacent vertex add its label to the set
-            for (const auto& v_adj : make_iterator_range(adjacent_vertices(v_1, g_1)))
-                neighbors_labels.insert(ver_to_id_1[level - 1][v_adj]);
-            // create a new label
-            string new_label = std::to_string(root_label) + ",";
-            for (const auto& e : neighbors_labels)
-                new_label += " " + std::to_string(e);
-            // hash / compress the label and map it
-            auto the_hash = hasher(new_label);
-            id_to_lab[the_hash] = new_label;
-            ver_to_id_1[level][v_1] = the_hash;
-        }
-
-        for (const auto& v_2 : make_iterator_range(vertices(g_2)))
-        {
-            multiset<size_t> neighbors_labels;
-            size_t root_label = ver_to_id_2[level - 1][v_2];
-
-            for (const auto& v_adj : make_iterator_range(adjacent_vertices(v_2, g_2)))
-                neighbors_labels.insert(ver_to_id_1[level - 1][v_adj]);
-
-            string new_label = std::to_string(root_label) + ",";
-            for (const auto& e : neighbors_labels)
-                new_label += " " + std::to_string(e);
-            auto the_hash = hasher(new_label);
-            id_to_lab[the_hash] = new_label;
-            ver_to_id_2[level][v_2] = the_hash;
-        }
-    }
+    // scan first graph hash table
+    for(const auto& row : hash_table_g_1)
+        for(const auto& cell : row)
+            hashed_labels.insert(cell);
+    // scan second graph hash table
+    for(const auto& row : hash_table_g_2)
+        for(const auto& cell : row)
+            hashed_labels.insert(cell);
 
     // print all labels
-    cout << "number of distinct labels: " << id_to_lab.size() << endl;
-    cout << "label mapping [hash <-> label]:" << endl;
-    size_t pos = 0;
-    for (const auto& [k, v] : id_to_lab)
-    {
-        cout << k << " <-> " << v << endl;
-        hash_pos_map[k] = pos++;
-    }
-
-    cout << "position mapping [hash <-> position]:" << endl;
-    for (const auto& [k, v] : hash_pos_map)
-        cout << k << " <-> " << v << endl;
-
+    cout << "number of distinct hashed labels: " << hashed_labels.size() << endl;
+    cout << "list of hashed labels:" << endl;
+    for (const auto& l : hashed_labels)
+        cout << l << endl;
 
     // count common labels
-
-    vector<size_t> phi_g_1(id_to_lab.size(), 0);
-    vector<size_t> phi_g_2(id_to_lab.size(), 0);
-
+    vector<size_t> phi_g_1(hashed_labels.size(), 0);
+    vector<size_t> phi_g_2(hashed_labels.size(), 0);
+/*
     for (level = 0; level < depth; level++)
     {
         cout << "depth: " << level << ", features in g_1" << endl;
@@ -676,7 +657,7 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
     cout << endl;
 
     // result is inner product of the two feature vectors Phi
-    kernel = std::inner_product(phi_g_1.begin(), phi_g_1.end(), phi_g_2.begin(), 0);
+    kernel = std::inner_product(phi_g_1.begin(), phi_g_1.end(), phi_g_2.begin(), 0);*/
 
     cout << "result = ";
     return kernel;
@@ -686,9 +667,9 @@ void load_graphs(graph_vector& G_, size_t n, const string& filename)
 {
     std::ifstream read(filename);
 
-    if (filename == "shock.txt" && (n < 0 || n>149))
+    if (filename == "data/shock.txt" && (n < 0 || n>149))
         n = 1;
-    if (filename == "ppi.txt" && (n < 0 || n>85))
+    if (filename == "data/ppi.txt" && (n < 0 || n>85))
         n = 1;
 
     int i = 0;

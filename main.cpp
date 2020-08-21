@@ -571,6 +571,7 @@ void initialize_hash_table(hash_table_t& hash_table, const labeled_graph_type& g
 
 void next_level_hash_table(hash_table_t& hash_table, const labeled_graph_type& g, size_t current_level)
 {
+    // starting from each node examine its hashed label and its neighbors' hashed label
     for (const auto& v : make_iterator_range(vertices(g)))
     {
         size_t this_node_hash = hash_table[current_level-1][v];
@@ -611,12 +612,10 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
 
     // scan first graph hash table
     for(const auto& row : hash_table_g_1)
-        for(const auto& cell : row)
-            hashed_labels.insert(cell);
+        hashed_labels.insert(row.begin(), row.end());
     // scan second graph hash table
     for(const auto& row : hash_table_g_2)
-        for(const auto& cell : row)
-            hashed_labels.insert(cell);
+        hashed_labels.insert(row.begin(), row.end());
 
     // print all labels
     cout << "number of distinct hashed labels: " << hashed_labels.size() << endl;
@@ -658,6 +657,14 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
 
     // result is inner product of the two feature vectors Phi
     kernel = std::inner_product(phi_g_1.begin(), phi_g_1.end(), phi_g_2.begin(), 0);*/
+
+
+    vector<size_t> a{hash_value("v3"),hash_value("v2")};
+    vector<size_t> b{hash_value("v2"),hash_value("v3")};
+
+    auto ha = hash_range(a.begin(), a.end());
+    auto hb = hash_range(b.begin(), b.end());
+    cout << boolalpha << (ha == hb) << endl;
 
     cout << "result = ";
     return kernel;

@@ -5,90 +5,7 @@
 #ifndef BGL_TEST_GRAPHS_H
 #define BGL_TEST_GRAPHS_H
 
-
-
-using namespace boost;
-using namespace std;
-/* STRUCTS FOR KERNEL FEATURES */
-typedef vector<vector<size_t>> distance_matrix_t;
-typedef vector<vector<size_t>> hash_table_t;
-/* PROPERTIES DEFINITIONS */
-// simplest properties
-struct m_graph_property
-{
-    m_graph_property() : m_graph_index(0), m_density(0.0) {}
-    // used to identify a graph
-    size_t m_graph_index;
-    // used to store graph density
-    double m_density;
-};
-
-struct m_edge_property
-{
-    // weight is positive integer
-    size_t weight;
-    m_edge_property() : weight(1) {}
-    explicit m_edge_property(size_t w) : weight(w) {}
-};
-
-struct m_vertex_property
-{
-    string label;
-    m_vertex_property() : label("default") {}
-    explicit m_vertex_property(string l) : label(std::move(l)) {}
-};
-
-/* GRAPH TYPE DEFINITIONS */
-// graph type identified by an index, edges have a weight and vertices have a name
-typedef adjacency_list<
-        setS, // store edges in set to avoid multi-edges, descriptor is integer and can be used as offset in external properties
-        vecS, // store vertices
-        undirectedS, // no direction
-        m_vertex_property, // label vertices with words or letters or numbers
-        m_edge_property, // natural weight on edges
-        m_graph_property> // distinguish graphs by index
-labeled_graph_type;
-/* USE SPECIFIC TYPES    */
-using vertex_descriptor = graph_traits<labeled_graph_type>::vertex_descriptor;
-using edge_descriptor = graph_traits<labeled_graph_type>::edge_descriptor;
-using vertex_iterator = graph_traits<labeled_graph_type>::vertex_iterator;
-using edge_iterator = graph_traits<labeled_graph_type>::edge_iterator;
-
-typedef vector<labeled_graph_type> graph_vector;
-
-/* FUNCTION DEFINITIONS */
-ostream& operator<<(ostream& os, const std::pair<string, string>& p)
-{
-    os << p.first << " -> " << p.second;
-    return os;
-}
-
-template<class tuple_type, size_t... I>
-void print_tuple(const tuple_type& _tup, std::index_sequence<I...>)
-{
-    std::cout << "(";
-    (..., (std::cout << (I == 0 ? "" : ", ") << std::get<I>(_tup)));
-    std::cout << ")\n";
-}
-
-template<class... T>
-void print_tuple(const std::tuple<T...>& _tup)
-{
-    print_tuple(_tup, std::make_index_sequence<sizeof...(T)>());
-}
-
-inline double density(const labeled_graph_type& g)
-{
-    try
-    {
-        return  (2 * (double)num_edges(g)) / ((double)num_vertices(g) * ((double)num_vertices(g) - 1));
-    }
-    catch (const std::exception&)
-    {
-        return 0.0;
-    }
-
-}
+#include "graph.h"
 
 labeled_graph_type test_graph_1()
 {
@@ -244,7 +161,7 @@ labeled_graph_type test_graph_6()
 }
 labeled_graph_type test_graph_7()
 {
-    cout << "Creating test graph 1 (from kernelsurvey p.23f.7)" << endl;
+    cout << "Creating test graph 1 (from WL-graph-kernel p.10f.2)" << endl;
 
     labeled_graph_type g(6);
     add_edge(0, 1, g);
@@ -254,7 +171,7 @@ labeled_graph_type test_graph_7()
     add_edge(2, 3, g);
     add_edge(2, 4, g);
     add_edge(2, 5, g);
-    /*/
+    //*/
     g[0].label = "5";
     g[1].label = "2";
     g[2].label = "4";
@@ -268,7 +185,7 @@ labeled_graph_type test_graph_7()
     g[3].label = "yellow";
     g[4].label = "red";
     g[5].label = "red";
-    /**/
+    **/
 
     g[graph_bundle].m_graph_index = 1;
     g[graph_bundle].m_density = density(g);
@@ -277,17 +194,17 @@ labeled_graph_type test_graph_7()
 }
 labeled_graph_type test_graph_8()
 {
-    cout << "Creating test graph 2 (from kernelsurvey p.23f.7)" << endl;
+    cout << "Creating test graph 2 (from WL-graph-kernel p.10f.2)" << endl;
 
     labeled_graph_type g(6);
     add_edge(0, 1, g);
     add_edge(0, 2, g);
-    add_edge(0, 3, g);
+    add_edge(1, 2, g);
     add_edge(1, 3, g);
     add_edge(2, 3, g);
     add_edge(2, 4, g);
-    add_edge(2, 5, g);
-    /*/
+    add_edge(3, 5, g);
+    //*/
     g[0].label = "2";
     g[1].label = "5";
     g[2].label = "4";
@@ -301,14 +218,12 @@ labeled_graph_type test_graph_8()
     g[3].label = "yellow";
     g[4].label = "red";
     g[5].label = "pink";
-    /**/
+    **/
 
     g[graph_bundle].m_graph_index = 2;
     g[graph_bundle].m_density = density(g);
 
     return g;
 }
-
-
 
 #endif //BGL_TEST_GRAPHS_H

@@ -1,6 +1,5 @@
 #include <iostream>
 #include <cstdlib>
-#include <fstream>
 #include <numeric>
 #include <functional>
 #include <string>
@@ -13,19 +12,6 @@
 #include "test_graphs.h"
 
 
-/* FUNCTIONS */
-// visualize graph vertices, edges and density.
-void print_graph_info(const labeled_graph_type& g);
-// calc graph density. It's used to decide which algo to use later.
-inline double density(const labeled_graph_type& g);
-// method loads n graphs from file "shock.txt" into G_
-void load_graphs(graph_vector& G_, size_t n = 2, const string& filename = "data/shock.txt");
-// method prints all graphs info
-void print_graph_vector_info(const graph_vector& G_);
-// func to print all edge weights
-void print_weights(const labeled_graph_type& g);
-// func to print all vertex names
-void print_vertex_labels(const labeled_graph_type& g);
 // Return matrix with all pair shortest paths
 distance_matrix_t get_all_pairs_shortest_paths(const labeled_graph_type& g);
 // Print all pair shortest paths. If verbose is true then shows matrix of paths
@@ -44,6 +30,7 @@ int main()
     //cin >> n;
 
     // vector to store graphs
+
     graph_vector G;
 
     load_graphs(G);
@@ -51,8 +38,9 @@ int main()
 
     const auto& g_1 = G[0];
     const auto& g_2 = G[1];
-    //const auto& g_1 = test_graph_7();
-    //const auto& g_2 = test_graph_8();
+    /*
+    const auto& g_1 = test_graph_7();
+    const auto& g_2 = test_graph_8();*/
 
     auto test_1 = floyd_warshall_transform(g_1, false);
     print_graph_info(test_1);
@@ -68,21 +56,6 @@ int main()
     cout << "computed on (g_1, g_2), at depth = " << depth << endl << weisfeiler_lehman_kernel(g_1, g_2, depth);
 
     return 0;
-}
-
-
-void print_vertex_labels(const labeled_graph_type& g)
-{
-    cout << "vertices(g) = { ";
-    for (auto v : make_iterator_range(vertices(g)))
-        std::cout << g[v].label << " ";
-    cout << "}" << endl;
-}
-
-void print_weights(const labeled_graph_type& g)
-{
-    for (const auto& e : make_iterator_range(edges(g)))
-        cout << g[e.m_source].label << " -> " << g[e.m_target].label << " : " << g[e].weight << endl;
 }
 
 distance_matrix_t get_all_pairs_shortest_paths(const labeled_graph_type& g)
@@ -184,18 +157,22 @@ size_t shortest_path_kernel(const labeled_graph_type& S_1, const labeled_graph_t
 {
     size_t kernel = 0;
 
-    std::set<std::tuple<string, string, size_t>> tuples;
+    tuple_set_t tuples;
 
     // insert paths in both directions
     for (const auto& e_1 : make_iterator_range(edges(S_1)))
     {
+        // A -> B
         tuples.insert(std::make_tuple(S_1[e_1.m_source].label, S_1[e_1.m_target].label, S_1[e_1].weight));
+        // B -> A
         tuples.insert(std::make_tuple(S_1[e_1.m_target].label, S_1[e_1.m_source].label, S_1[e_1].weight));
     }
     
     for (const auto& e_2 : make_iterator_range(edges(S_2)))
     {
+        // A -> B
         tuples.insert(std::make_tuple(S_2[e_2.m_source].label, S_2[e_2.m_target].label, S_2[e_2].weight));
+        // B -> A
         tuples.insert(std::make_tuple(S_2[e_2.m_target].label, S_2[e_2.m_source].label, S_2[e_2].weight));
     }
 
@@ -285,7 +262,7 @@ void next_level_hash_table(hash_table_t& hash_table, const labeled_graph_type& g
     for (const auto& v : make_iterator_range(vertices(g)))
     {
         size_t this_node_hash = hash_table[previous_level][v];
-        cout << "this node hash: " << this_node_hash;
+        cout << v << ": this node hash: " << this_node_hash;
         multiset<size_t> neighbor_node_hashes;
         // add each adjacent hashed label to multiset
         cout << " | neighbor hash: ";
@@ -304,9 +281,9 @@ void next_level_hash_table(hash_table_t& hash_table, const labeled_graph_type& g
         hash_table[current_level][v] = hash_range(new_node_label.begin(), new_node_label.end());
 
         // DEBUG
-        cout << "new label: ";
+        /*cout << "new label: ";
         for (const auto& h : new_node_label)
-            cout << h << " ";
+            cout << h << " ";*/
         cout << "with hash: " << hash_table[current_level][v] << endl;
     }
 }
@@ -367,21 +344,20 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
         cout << endl;
     }
 
-
-
     // count common labels
     vector<size_t> phi_g_1(hashed_labels.size(), 0);
     vector<size_t> phi_g_2(hashed_labels.size(), 0);
 
     // for each label
-    for (auto [position, label_itr] = std::tuple{0, hashed_labels.begin()}; label_itr != hashed_labels.end(); label_itr++, position++)
+    for (auto [position, label_itr] = make_pair(0, hashed_labels.begin()); label_itr != hashed_labels.end(); label_itr++, position++)
     {
+        cout << "label: " << *label_itr << " position: " << position << endl;
         // count how many times label_itr's present in the hash tables
         for(const auto& row : hash_table_g_1)
-                phi_g_1[position] = count(row.begin(), row.end(), *label_itr);
+                phi_g_1[position] += count(row.begin(), row.end(), *label_itr);
 
         for(const auto& row : hash_table_g_2)
-                phi_g_2[position] = count(row.begin(), row.end(), *label_itr);
+                phi_g_2[position] += count(row.begin(), row.end(), *label_itr);
     }
 
     cout << "Phi g 1:" << endl;
@@ -407,94 +383,4 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
 
     cout << "result = ";
     return kernel;
-}
-
-void load_graphs(graph_vector& G_, size_t n, const string& filename)
-{
-    std::ifstream read(filename);
-
-    if (filename == "data/shock.txt" && (n < 0 || n>149))
-        n = 1;
-    if (filename == "data/ppi.txt" && (n < 0 || n>85))
-        n = 1;
-
-    int i = 0;
-    // read until you reach the end of the file or the number of graphs wanted
-    for (string line; getline(read, line) && i != n; ++i) {
-
-        // inserting the line into a stream that helps to parse the content
-        stringstream ss(line);
-
-        size_t num_vertices, source, target;
-        char comma;
-
-        ss >> num_vertices;
-
-        //cout << "num of vertices: " << num_vertices << endl; //DEBUG
-        labeled_graph_type g_(num_vertices);
-        //vertex_name_map_t name_map = get(vertex_name, g_);
-        //edge_weight_map_t weight_map = get(edge_weight, g_);
-
-        while (ss >> source >> comma >> target)
-        {
-            edge_descriptor ed;
-            bool inserted;
-
-            // in txt file nodes start from 1
-            source--; target--;
-
-            //cout << "(" << source << "," << target << ")" << " "; //DEBUG
-            tie(ed, inserted) = add_edge(source, target, g_);
-
-            if(inserted)
-            {
-                vertex_descriptor vs, vt;
-                vs = boost::source(ed, g_);
-                vt = boost::target(ed, g_);
-                g_[vs].label = "v" + std::to_string(source);
-                g_[vt].label = "v" + std::to_string(target);
-                // DEBUG
-                //cout << "s: " << g_[vs].label << endl; // DEBUG
-                //cout << "t: " << g_[vt].label << endl; // DEBUG
-                //cout << "w: " << g_[ed].weight << endl; // DEBUG
-            }
-        }
-
-        g_[graph_bundle].m_graph_index = i;
-        g_[graph_bundle].m_density = density(g_);
-        G_.push_back(g_);
-    }
-
-    read.close();
-}
-
-void print_graph_vector_info(const graph_vector& G_)
-{
-    for (const auto& g_ : G_)
-        print_graph_info(g_);
-}
-
-void print_graph_info(const labeled_graph_type& g)
-{
-    cout << "\n**************************************************************************************************\n";
-    cout << "Graph ID = " << g[graph_bundle].m_graph_index << endl;
-    cout << "|vertices(g)| = " << num_vertices(g) << ",\t";
-    cout << "|edges(g)| = " << num_edges(g) << endl;
-
-    print_vertex_labels(g);
-
-    cout << endl;
-
-    print_weights(g);
-
-    double d = g[graph_bundle].m_density;
-
-    cout.precision(3);
-
-    if (d > 0.7)
-        cout << "\n\nGraph is dense (D = " << fixed << d << ")";
-    else
-        cout << "\n\nGraph is sparse (D = " << fixed << d << ")";
-
-    cout << "\n**************************************************************************************************\n";
 }

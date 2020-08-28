@@ -1,6 +1,5 @@
 #include <iostream>
 #include <cstdlib>
-#include <fstream>
 #include <numeric>
 #include <functional>
 #include <string>
@@ -8,91 +7,11 @@
 #include <boost/graph/floyd_warshall_shortest.hpp>
 #include <boost/graph/johnson_all_pairs_shortest.hpp>
 #include <boost/graph/graph_utility.hpp>
+#include <boost/container_hash/hash.hpp>
 #include <utility>
+#include "test_graphs.h"
 
 
-using namespace boost;
-using namespace std;
-/* STRUCTS FOR KERNEL FEATURES */
-typedef vector<vector<size_t>> distance_matrix_t;
-
-ostream& operator<<(ostream& os, const std::pair<string, string>& p)
-{
-    os << p.first << " -> " << p.second;
-    return os;
-}
-
-template<class tuple_type, size_t... I>
-void print_tuple(const tuple_type& _tup, std::index_sequence<I...>)
-{
-    std::cout << "(";
-    (..., (std::cout << (I == 0 ? "" : ", ") << std::get<I>(_tup)));
-    std::cout << ")\n";
-}
-
-template<class... T>
-void print_tuple(const std::tuple<T...>& _tup)
-{
-    print_tuple(_tup, std::make_index_sequence<sizeof...(T)>());
-}
-
-/* PROPERTIES DEFINITIONS */
-// simplest properties
-struct m_graph_property
-{
-    m_graph_property() : m_graph_index(0), m_density(0.0) {}
-    // used to identify a graph
-    size_t m_graph_index;
-    // used to store graph density
-    double m_density;
-};
-
-struct m_edge_property
-{
-    // weight is positive integer
-    size_t weight;
-    m_edge_property() : weight(1) {}
-    explicit m_edge_property(size_t w) : weight(w) {}
-};
-
-struct m_vertex_property
-{
-    string label;
-    m_vertex_property() : label("default") {}
-    explicit m_vertex_property(string l) : label(std::move(l)) {}
-};
-
-/* GRAPH TYPE DEFINITIONS */
-// graph type identified by an index, edges have a weight and vertices have a name
-typedef adjacency_list<
-        setS, // store edges in set to avoid multi-edges, descriptor is integer and can be used as offset in external properties
-        vecS, // store vertices
-        undirectedS, // no direction
-        m_vertex_property, // label vertices with words or letters or numbers
-        m_edge_property, // natural weight on edges
-        m_graph_property> // distinguish graphs by index
-        labeled_graph_type;
-/* USE SPECIFIC TYPES    */
-using vertex_descriptor = graph_traits<labeled_graph_type>::vertex_descriptor;
-using edge_descriptor = graph_traits<labeled_graph_type>::edge_descriptor;
-using vertex_iterator = graph_traits<labeled_graph_type>::vertex_iterator;
-using edge_iterator = graph_traits<labeled_graph_type>::edge_iterator;
-
-typedef vector<labeled_graph_type> graph_vector;
-
-/* FUNCTIONS */
-// visualize graph vertices, edges and density.
-void print_graph_info(const labeled_graph_type& g);
-// calc graph density. It's used to decide which algo to use later.
-inline double density(const labeled_graph_type& g);
-// method loads n graphs from file "shock.txt" into G_
-void load_graphs(graph_vector& G_, size_t n = 2, const string& filename = "data/shock.txt");
-// method prints all graphs info
-void print_graph_vector_info(const graph_vector& G_);
-// func to print all edge weights
-void print_weights(const labeled_graph_type& g);
-// func to print all vertex names
-void print_vertex_labels(const labeled_graph_type& g);
 // Return matrix with all pair shortest paths
 distance_matrix_t get_all_pairs_shortest_paths(const labeled_graph_type& g);
 // Print all pair shortest paths. If verbose is true then shows matrix of paths
@@ -104,15 +23,6 @@ labeled_graph_type floyd_warshall_transform(const labeled_graph_type& g, bool ve
 size_t shortest_path_kernel(const labeled_graph_type& S_1, const labeled_graph_type& S_2);
 // compute the weisfeiler lehman kernel between two graphs
 size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_graph_type& g_2, size_t depth);
-// Create test graphs
-labeled_graph_type test_graph_1();
-labeled_graph_type test_graph_2();
-labeled_graph_type test_graph_3();
-labeled_graph_type test_graph_4();
-labeled_graph_type test_graph_5();
-labeled_graph_type test_graph_6();
-labeled_graph_type test_graph_7();
-labeled_graph_type test_graph_8();
 
 int main()
 {
@@ -120,6 +30,7 @@ int main()
     //cin >> n;
 
     // vector to store graphs
+
     graph_vector G;
 
     load_graphs(G);
@@ -127,6 +38,9 @@ int main()
 
     const auto& g_1 = G[0];
     const auto& g_2 = G[1];
+    /*
+    const auto& g_1 = test_graph_7();
+    const auto& g_2 = test_graph_8();*/
 
     auto test_1 = floyd_warshall_transform(g_1, false);
     print_graph_info(test_1);
@@ -142,21 +56,6 @@ int main()
     cout << "computed on (g_1, g_2), at depth = " << depth << endl << weisfeiler_lehman_kernel(g_1, g_2, depth);
 
     return 0;
-}
-
-
-void print_vertex_labels(const labeled_graph_type& g)
-{
-    cout << "vertices(g) = { ";
-    for (auto v : make_iterator_range(vertices(g)))
-        std::cout << g[v].label << " ";
-    cout << "}" << endl;
-}
-
-void print_weights(const labeled_graph_type& g)
-{
-    for (const auto& e : make_iterator_range(edges(g)))
-        cout << g[e.m_source].label << " -> " << g[e.m_target].label << " : " << g[e].weight << endl;
 }
 
 distance_matrix_t get_all_pairs_shortest_paths(const labeled_graph_type& g)
@@ -202,226 +101,6 @@ void print_distance_matrix(distance_matrix_t distance_matrix, VertexNameMap name
         cout << endl;
     });
 }
-
-labeled_graph_type test_graph_1()
-{
-    cout << "Creating test graph 1 (from notebook)" << endl;
-
-    char name[] = "ABCD";
-
-    labeled_graph_type g;
-    add_edge(0, 1, g);
-    add_edge(0, 2, g);
-    add_edge(0, 3, g);
-    add_edge(2, 3, g);
-
-    /*
-    for (auto v : make_iterator_range(vertices(g)))
-        g[v].label = name[rand() % num_vertices(g)]; // random labels
-    */
-
-    for (size_t i = 0; i < num_vertices(g); i++)
-        g[i].label = name[i];
-
-    g[graph_bundle].m_graph_index = 1;
-    g[graph_bundle].m_density = density(g);
-
-    return g;
-}
-labeled_graph_type test_graph_2()
-{
-    cout << "Creating test graph 2 (from notebook)" << endl;
-
-    char name[] = "ABCDE";
-
-    labeled_graph_type g;
-    add_edge(2, 0, g);
-    add_edge(0, 3, g);
-    add_edge(1, 3, g);
-    add_edge(4, 3, g);
-    add_edge(4, 3, g);
-
-    /*
-    for (auto v : make_iterator_range(vertices(g)))
-        g[v].label = name[rand() % num_vertices(g)]; // random labels
-    */
-
-    for (size_t i = 0; i < num_vertices(g); i++)
-        g[i].label = name[i];
-
-    g[graph_bundle].m_graph_index = 2;
-    g[graph_bundle].m_density = density(g);
-
-    return g;
-}
-labeled_graph_type test_graph_3()
-{
-    cout << "Creating test graph 1 (from kernel survey p.20 f.5)" << endl;
-    labeled_graph_type g;
-
-    vertex_descriptor a,b,c;
-    edge_descriptor e;
-    bool success;
-
-    a = add_vertex(g);
-    b = add_vertex(g);
-    c = add_vertex(g);
-
-    g[a].label = "a";
-    g[b].label = "b";
-    g[c].label = "a";
-
-    tie(e, success) = add_edge(a, b, g);
-    assert(success);
-    tie(e, success) = add_edge(b, c, g);
-    assert(success);
-
-    g[graph_bundle].m_graph_index = 1;
-    g[graph_bundle].m_density = density(g);
-
-    return g;
-}
-labeled_graph_type test_graph_4()
-{
-    cout << "Creating test graph 4 (from notebook)" << endl;
-    string name = "ABCDEF";
-    enum {A, B, C, D, E, F, n};
-    labeled_graph_type g(n);
-
-    for (int i = 0; i < n; i++)
-        g[i].label = name[i];
-
-    boost::add_edge(A, B, g);
-    boost::add_edge(A, C, g);
-    boost::add_edge(A, D, g);
-    boost::add_edge(F, E, g);
-    boost::add_edge(E, C, g);
-    boost::add_edge(C, F, g);
-
-
-    g[graph_bundle].m_graph_index = 4;
-    g[graph_bundle].m_density = density(g);
-
-    return g;
-}
-labeled_graph_type test_graph_5()
-{
-    cout << "Creating test graph 2 (from kernel survey p.20 f.5)" << endl;
-    labeled_graph_type g;
-
-    vertex_descriptor a, b1, b2, c;
-    edge_descriptor e;
-    bool success;
-
-    a = add_vertex(g);
-    b1 = add_vertex(g);
-    b2 = add_vertex(g);
-    c = add_vertex(g);
-
-    g[a].label = "a";
-    g[b1].label = "b";
-    g[b2].label = "b";
-    g[c].label = "c";
-
-    tie(e, success) = add_edge(a, b1, g);
-    assert(success);
-    tie(e, success) = add_edge(b1, c, g);
-    assert(success); 
-    tie(e, success) = add_edge(b1, b2, g);
-    assert(success);
-
-    g[graph_bundle].m_graph_index = 2;
-    g[graph_bundle].m_density = density(g);
-
-    return g;
-}
-labeled_graph_type test_graph_6()
-{
-    cout << "Creating test graph 3 (from notebook)" << endl;
-
-    labeled_graph_type g;
-    add_edge(0, 1, g);
-    add_edge(0, 2, g);
-    add_edge(0, 3, g);
-    add_edge(1, 3, g);
-
-    g[0].label = "A";
-    g[1].label = "B";
-    g[2].label = "C";
-    g[3].label = "D";
-
-    g[graph_bundle].m_graph_index = 3;
-    g[graph_bundle].m_density = density(g);
-
-    return g;
-}
-labeled_graph_type test_graph_7()
-{
-    cout << "Creating test graph 1 (from kernelsurvey p.23f.7)" << endl;
-
-    labeled_graph_type g(6);
-    add_edge(0, 1, g);
-    add_edge(0, 2, g);
-    add_edge(0, 3, g);
-    add_edge(1, 3, g);
-    add_edge(2, 3, g);
-    add_edge(2, 4, g);
-    add_edge(2, 5, g);
-    /*/
-    g[0].label = "5";
-    g[1].label = "2";
-    g[2].label = "4";
-    g[3].label = "3";
-    g[4].label = "1";
-    g[5].label = "1";  
-    /*/
-    g[0].label = "green";
-    g[1].label = "pink";
-    g[2].label = "grey";
-    g[3].label = "yellow";
-    g[4].label = "red";
-    g[5].label = "red";
-    /**/
-
-    g[graph_bundle].m_graph_index = 1;
-    g[graph_bundle].m_density = density(g);
-
-    return g;
-}
-labeled_graph_type test_graph_8()
-{
-    cout << "Creating test graph 2 (from kernelsurvey p.23f.7)" << endl;
-
-    labeled_graph_type g(6);
-    add_edge(0, 1, g);
-    add_edge(0, 2, g);
-    add_edge(0, 3, g);
-    add_edge(1, 3, g);
-    add_edge(2, 3, g);
-    add_edge(2, 4, g);
-    add_edge(2, 5, g);
-    /*/
-    g[0].label = "2";
-    g[1].label = "5";
-    g[2].label = "4";
-    g[3].label = "3";
-    g[4].label = "1";
-    g[5].label = "2";
-    /*/
-    g[0].label = "pink";
-    g[1].label = "green";
-    g[2].label = "grey";
-    g[3].label = "yellow";
-    g[4].label = "red";
-    g[5].label = "pink";
-    /**/
-
-    g[graph_bundle].m_graph_index = 2;
-    g[graph_bundle].m_density = density(g);
-
-    return g;
-}
-
 
 labeled_graph_type floyd_warshall_transform(const labeled_graph_type& g, bool verbose)
 {
@@ -478,18 +157,22 @@ size_t shortest_path_kernel(const labeled_graph_type& S_1, const labeled_graph_t
 {
     size_t kernel = 0;
 
-    std::set<std::tuple<string, string, size_t>> tuples;
+    tuple_set_t tuples;
 
     // insert paths in both directions
     for (const auto& e_1 : make_iterator_range(edges(S_1)))
     {
+        // A -> B
         tuples.insert(std::make_tuple(S_1[e_1.m_source].label, S_1[e_1.m_target].label, S_1[e_1].weight));
+        // B -> A
         tuples.insert(std::make_tuple(S_1[e_1.m_target].label, S_1[e_1.m_source].label, S_1[e_1].weight));
     }
     
     for (const auto& e_2 : make_iterator_range(edges(S_2)))
     {
+        // A -> B
         tuples.insert(std::make_tuple(S_2[e_2.m_source].label, S_2[e_2.m_target].label, S_2[e_2].weight));
+        // B -> A
         tuples.insert(std::make_tuple(S_2[e_2.m_target].label, S_2[e_2.m_source].label, S_2[e_2].weight));
     }
 
@@ -558,119 +241,131 @@ size_t shortest_path_kernel(const labeled_graph_type& S_1, const labeled_graph_t
     return kernel;
 }
 
+void initialize_hash_table(hash_table_t& hash_table, const labeled_graph_type& g)
+{
+    // initialize first level of hash table
+    int level = 0;
+    // for each node, hash its label and insert it in corresponding cell in hash table
+    for (const auto& v : make_iterator_range(vertices(g)))
+    {
+        hash_table[level][v] = hash_value(g[v].label);
+        cout << "hash: " << hash_table[level][v] << " - label: " << g[v].label << endl;
+    }
+
+}
+
+void next_level_hash_table(hash_table_t& hash_table, const labeled_graph_type& g, size_t current_level)
+{
+    auto previous_level = current_level - 1;
+    cout << "previous level: " << previous_level << endl;
+    // starting from each node examine its hashed label and its neighbors' hashed label
+    for (const auto& v : make_iterator_range(vertices(g)))
+    {
+        size_t this_node_hash = hash_table[previous_level][v];
+        cout << v << ": this node hash: " << this_node_hash;
+        multiset<size_t> neighbor_node_hashes;
+        // add each adjacent hashed label to multiset
+        cout << " | neighbor hash: ";
+        for (const auto& v_adj : make_iterator_range(adjacent_vertices(v, g)))
+        {
+            auto neighbor_hash = hash_table[previous_level][v_adj];
+            neighbor_node_hashes.insert(neighbor_hash);
+            cout << neighbor_hash << " ";
+        }
+        cout << endl;
+        // transform multiset in vector
+        vector<size_t> new_node_label(neighbor_node_hashes.begin(), neighbor_node_hashes.end());
+        // add in first position its previous hashed label
+        new_node_label.insert(new_node_label.begin(), this_node_hash);
+        // hash the new label and insert it in corresponding cell in hash table
+        hash_table[current_level][v] = hash_range(new_node_label.begin(), new_node_label.end());
+
+        // DEBUG
+        /*cout << "new label: ";
+        for (const auto& h : new_node_label)
+            cout << h << " ";*/
+        cout << "with hash: " << hash_table[current_level][v] << endl;
+    }
+}
+
 size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_graph_type& g_2, size_t depth)
 {
     size_t kernel = 0;
 
-    // hash to label mapping
-    typedef std::map<size_t, string> label_id_map;
-    label_id_map id_to_lab;
-    // vertex descriptor to hash mapping
-    typedef std::map<vertex_descriptor, size_t>  vertex_id_map;
-    vector<vertex_id_map> ver_to_id_1(depth), ver_to_id_2(depth);
-    // hash function to uniquely map labels (and label compression)
-    std::hash<string> hasher;
-    // map hash to a position for inner product
-    std::map<size_t, size_t> hash_pos_map;
-    // used for tree depth
-    size_t level = 0;
+    // hash tables containing label hash for each vertex for each level of depth in W-L algorithm
+    hash_table_t hash_table_g_1(depth, vector<size_t>(num_vertices(g_1)));
+    hash_table_t hash_table_g_2(depth, vector<size_t>(num_vertices(g_2)));
 
-    // find all unique labels and add them to level 0 
-    for (const auto& v_1 : make_iterator_range(vertices(g_1)))
+    // initialize hash tables
+    initialize_hash_table(hash_table_g_1, g_1);
+    initialize_hash_table(hash_table_g_2, g_2);
+
+    // compute the new hashed labels for each level for each graph
+    for (size_t level = 1; level < depth; level++)
     {
-        auto the_hash = hasher(g_1[v_1].label);
-        id_to_lab[the_hash] = g_1[v_1].label;
-        ver_to_id_1[level][v_1] = the_hash;
+        cout << "level: " << level << " graph: 1" << endl;
+        next_level_hash_table(hash_table_g_1, g_1, level);
+        cout << "level: " << level << " graph: 2" << endl;
+        next_level_hash_table(hash_table_g_2, g_2, level);
     }
 
-    for (const auto& v_2 : make_iterator_range(vertices(g_2)))
-    {
-        auto the_hash = hasher(g_2[v_2].label);
-        id_to_lab[the_hash] = g_2[v_2].label;
-        ver_to_id_2[level][v_2] = the_hash;
-    }
+    // create a set containing every unique hashed label
+    set<size_t> hashed_labels;
 
-    for (level = 1; level < depth; level++)
-    {
-        // compare label of previous level 
-        for (const auto& v_1 : make_iterator_range(vertices(g_1)))
-        {
-            multiset<size_t> neighbors_labels;
-            size_t root_label = ver_to_id_1[level-1][v_1];
-            // for each adjacent vertex add its label to the set
-            for (const auto& v_adj : make_iterator_range(adjacent_vertices(v_1, g_1)))
-                neighbors_labels.insert(ver_to_id_1[level - 1][v_adj]);
-            // create a new label
-            string new_label = std::to_string(root_label) + ",";
-            for (const auto& e : neighbors_labels)
-                new_label += " " + std::to_string(e);
-            // hash / compress the label and map it
-            auto the_hash = hasher(new_label);
-            id_to_lab[the_hash] = new_label;
-            ver_to_id_1[level][v_1] = the_hash;
-        }
-
-        for (const auto& v_2 : make_iterator_range(vertices(g_2)))
-        {
-            multiset<size_t> neighbors_labels;
-            size_t root_label = ver_to_id_2[level - 1][v_2];
-
-            for (const auto& v_adj : make_iterator_range(adjacent_vertices(v_2, g_2)))
-                neighbors_labels.insert(ver_to_id_1[level - 1][v_adj]);
-
-            string new_label = std::to_string(root_label) + ",";
-            for (const auto& e : neighbors_labels)
-                new_label += " " + std::to_string(e);
-            auto the_hash = hasher(new_label);
-            id_to_lab[the_hash] = new_label;
-            ver_to_id_2[level][v_2] = the_hash;
-        }
-    }
+    // scan first graph hash table
+    for(const auto& row : hash_table_g_1)
+        hashed_labels.insert(row.begin(), row.end());
+    // scan second graph hash table
+    for(const auto& row : hash_table_g_2)
+        hashed_labels.insert(row.begin(), row.end());
 
     // print all labels
-    cout << "number of distinct labels: " << id_to_lab.size() << endl;
-    cout << "label mapping [hash <-> label]:" << endl;
-    size_t pos = 0;
-    for (const auto& [k, v] : id_to_lab)
+    cout << "number of distinct hashed labels: " << hashed_labels.size() << endl;
+/*
+    cout << "list of hashed labels:" << endl;
+    for (const auto& l : hashed_labels)
+        cout << '\t' << l << endl;
+*/
+    // DEBUG
+    cout << "hash table 1: " << endl;
+    for(int level = 0; level < depth; level++)
     {
-        cout << k << " <-> " << v << endl;
-        hash_pos_map[k] = pos++;
+        cout << "\tlevel " << level << endl << '\t';
+        for(const auto& h : hash_table_g_1[level])
+            cout << h << " ";
+        cout << endl;
     }
-
-    cout << "position mapping [hash <-> position]:" << endl;
-    for (const auto& [k, v] : hash_pos_map)
-        cout << k << " <-> " << v << endl;
-
+    cout << "hash table 2: " << endl;
+    for(int level = 0; level < depth; level++)
+    {
+        cout << "\tlevel " << level << endl << '\t';
+        for(const auto& h : hash_table_g_2[level])
+            cout << h << " ";
+        cout << endl;
+    }
 
     // count common labels
+    vector<size_t> phi_g_1(hashed_labels.size(), 0);
+    vector<size_t> phi_g_2(hashed_labels.size(), 0);
 
-    vector<size_t> phi_g_1(id_to_lab.size(), 0);
-    vector<size_t> phi_g_2(id_to_lab.size(), 0);
-
-    for (level = 0; level < depth; level++)
+    // for each label
+    for (auto [position, label_itr] = make_pair(0, hashed_labels.begin()); label_itr != hashed_labels.end(); label_itr++, position++)
     {
-        cout << "depth: " << level << ", features in g_1" << endl;
-        for (const auto& [this_v, this_hash] : ver_to_id_1[level])
-        {
-            cout << "vertex descriptor: " << this_v << " | label ID: " << this_hash << " <-> " << id_to_lab[this_hash] << endl;
-            phi_g_1[hash_pos_map[this_hash]]++;
-        }
+        cout << "label: " << *label_itr << " position: " << position << endl;
+        // count how many times label_itr's present in the hash tables
+        for(const auto& row : hash_table_g_1)
+                phi_g_1[position] += count(row.begin(), row.end(), *label_itr);
 
-        cout << "depth: " << level << ", features in g_2" << endl;
-        for (const auto& [this_v, this_hash] : ver_to_id_2[level])
-        {
-            cout << "vertex descriptor: " << this_v << " | label ID: " << this_hash << " <-> " << id_to_lab[this_hash] << endl;
-            //cout << "deb " << this_hash << " " << hash_pos_map[this_hash] << endl;
-            phi_g_2[hash_pos_map[this_hash]]++;
-        }
+        for(const auto& row : hash_table_g_2)
+                phi_g_2[position] += count(row.begin(), row.end(), *label_itr);
     }
 
-    cout << "Phi g_1:" << endl;
+    cout << "Phi g 1:" << endl;
     for (auto p : phi_g_1)
         cout << p << " ";
     cout << endl;
 
-    cout << "Phi g_1:" << endl;
+    cout << "Phi g 2:" << endl;
     for (auto p : phi_g_2)
         cout << p << " ";
     cout << endl;
@@ -678,109 +373,14 @@ size_t weisfeiler_lehman_kernel(const labeled_graph_type& g_1, const labeled_gra
     // result is inner product of the two feature vectors Phi
     kernel = std::inner_product(phi_g_1.begin(), phi_g_1.end(), phi_g_2.begin(), 0);
 
+    // check if hash is order dependent
+    vector<size_t> a{hash_value("v3"),hash_value("v2")};
+    vector<size_t> b{hash_value("v2"),hash_value("v3")};
+
+    auto ha = hash_range(a.begin(), a.end());
+    auto hb = hash_range(b.begin(), b.end());
+    cout << boolalpha << (ha == hb) << endl;
+
     cout << "result = ";
     return kernel;
-}
-
-void load_graphs(graph_vector& G_, size_t n, const string& filename)
-{
-    std::ifstream read(filename);
-
-    if (filename == "shock.txt" && (n < 0 || n>149))
-        n = 1;
-    if (filename == "ppi.txt" && (n < 0 || n>85))
-        n = 1;
-
-    int i = 0;
-    // read until you reach the end of the file or the number of graphs wanted
-    for (string line; getline(read, line) && i != n; ++i) {
-
-        // inserting the line into a stream that helps to parse the content
-        stringstream ss(line);
-
-        size_t num_vertices, source, target;
-        char comma;
-
-        ss >> num_vertices;
-
-        //cout << "num of vertices: " << num_vertices << endl; //DEBUG
-        labeled_graph_type g_(num_vertices);
-        //vertex_name_map_t name_map = get(vertex_name, g_);
-        //edge_weight_map_t weight_map = get(edge_weight, g_);
-
-        while (ss >> source >> comma >> target)
-        {
-            edge_descriptor ed;
-            bool inserted;
-
-            // in txt file nodes start from 1
-            source--; target--;
-
-            //cout << "(" << source << "," << target << ")" << " "; //DEBUG
-            tie(ed, inserted) = add_edge(source, target, g_);
-
-            if(inserted)
-            {
-                vertex_descriptor vs, vt;
-                vs = boost::source(ed, g_);
-                vt = boost::target(ed, g_);
-                g_[vs].label = "v" + std::to_string(source);
-                g_[vt].label = "v" + std::to_string(target);
-                // DEBUG
-                //cout << "s: " << g_[vs].label << endl; // DEBUG
-                //cout << "t: " << g_[vt].label << endl; // DEBUG
-                //cout << "w: " << g_[ed].weight << endl; // DEBUG
-            }
-        }
-
-        g_[graph_bundle].m_graph_index = i;
-        g_[graph_bundle].m_density = density(g_);
-        G_.push_back(g_);
-    }
-
-    read.close();
-}
-
-void print_graph_vector_info(const graph_vector& G_)
-{
-    for (const auto& g_ : G_)
-        print_graph_info(g_);
-}
-
-void print_graph_info(const labeled_graph_type& g)
-{
-    cout << "\n**************************************************************************************************\n";
-    cout << "Graph ID = " << g[graph_bundle].m_graph_index << endl;
-    cout << "|vertices(g)| = " << num_vertices(g) << ",\t";
-    cout << "|edges(g)| = " << num_edges(g) << endl;
-
-    print_vertex_labels(g);
-
-    cout << endl;
-
-    print_weights(g);
-
-    double d = g[graph_bundle].m_density;
-
-    cout.precision(3);
-
-    if (d > 0.7)
-        cout << "\n\nGraph is dense (D = " << fixed << d << ")";
-    else
-        cout << "\n\nGraph is sparse (D = " << fixed << d << ")";
-
-    cout << "\n**************************************************************************************************\n";
-}
-
-inline double density(const labeled_graph_type& g)
-{
-    try
-    {
-        return  (2 * (double)num_edges(g)) / ((double)num_vertices(g) * ((double)num_vertices(g) - 1));
-    }
-    catch (const std::exception&)
-    {
-        return 0.0;
-    }
-
 }

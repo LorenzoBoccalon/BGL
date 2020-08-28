@@ -13,6 +13,6 @@ set(Boost_LIBRARY_DIR C:/Users/loryt/documents/boost/boost_1_73_0/stage/lib)
 include_directories(${Boost_INCLUDE_DIR})
 link_directories(${Boost_LIBRARY_DIR})
 
-add_executable(BGL main.cpp)
+add_executable(BGL main.cpp test_graphs.h graph.h)
 
 
